@@ -13,6 +13,11 @@ let package = Package(
             resources: [
                 .process("Assets.xcassets")
             ]
+        ),
+        .testTarget(
+            name: "PPIOClaudeInstallerTests",
+            dependencies: ["PPIOClaudeInstaller"],
+            path: "Tests"
         )
     ]
 )

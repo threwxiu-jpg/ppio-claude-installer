@@ -8,8 +8,9 @@ BUILD_DIR="$PROJECT_DIR/.build/release"
 APP_NAME="PPIO Claude Installer"
 DMG_NAME="PPIOClaudeInstaller"
 OUTPUT_DIR="$PROJECT_DIR/dist"
+VERSION=$(cat "$PROJECT_DIR/VERSION" | tr -d '[:space:]')
 
-echo "=== Building $APP_NAME ==="
+echo "=== Building $APP_NAME v$VERSION ==="
 
 cd "$PROJECT_DIR"
 
@@ -26,8 +27,26 @@ mkdir -p "$APP_DIR/Contents/Resources"
 # Copy binary
 cp "$BUILD_DIR/PPIOClaudeInstaller" "$APP_DIR/Contents/MacOS/"
 
+# Generate .icns from PNG icons
+ICONSET_DIR="$OUTPUT_DIR/AppIcon.iconset"
+rm -rf "$ICONSET_DIR"
+mkdir -p "$ICONSET_DIR"
+ICON_SRC="$PROJECT_DIR/PPIOClaudeInstaller/Assets.xcassets/AppIcon.appiconset"
+cp "$ICON_SRC/icon_16x16.png"     "$ICONSET_DIR/icon_16x16.png"
+cp "$ICON_SRC/icon_32x32.png"     "$ICONSET_DIR/icon_16x16@2x.png"
+cp "$ICON_SRC/icon_32x32.png"     "$ICONSET_DIR/icon_32x32.png"
+cp "$ICON_SRC/icon_64x64.png"     "$ICONSET_DIR/icon_32x32@2x.png"
+cp "$ICON_SRC/icon_128x128.png"   "$ICONSET_DIR/icon_128x128.png"
+cp "$ICON_SRC/icon_256x256.png"   "$ICONSET_DIR/icon_128x128@2x.png"
+cp "$ICON_SRC/icon_256x256.png"   "$ICONSET_DIR/icon_256x256.png"
+cp "$ICON_SRC/icon_512x512.png"   "$ICONSET_DIR/icon_256x256@2x.png"
+cp "$ICON_SRC/icon_512x512.png"   "$ICONSET_DIR/icon_512x512.png"
+cp "$ICON_SRC/icon_1024x1024.png" "$ICONSET_DIR/icon_512x512@2x.png"
+iconutil -c icns "$ICONSET_DIR" -o "$APP_DIR/Contents/Resources/AppIcon.icns"
+rm -rf "$ICONSET_DIR"
+
 # Create Info.plist
-cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
+cat > "$APP_DIR/Contents/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -39,9 +58,11 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
     <key>CFBundleIdentifier</key>
     <string>com.ppio.claude-installer</string>
     <key>CFBundleVersion</key>
-    <string>1.0.0</string>
+    <string>$VERSION</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>$VERSION</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>

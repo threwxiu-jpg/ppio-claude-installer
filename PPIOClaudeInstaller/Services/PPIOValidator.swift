@@ -41,9 +41,15 @@ enum PPIOValidator {
                 return (false, "Model not found (404). Check the model ID: \(modelID)")
             case 429:
                 return (false, "Rate limited (429). Please try again later.")
+            case 500...599:
+                return (false, "PPIO server error (\(httpResponse.statusCode)). Please try again later.")
             default:
                 return (false, "Server returned status \(httpResponse.statusCode)")
             }
+        } catch let error as URLError where error.code == .timedOut {
+            return (false, "Connection timed out. Check your network and try again.")
+        } catch let error as URLError where error.code == .notConnectedToInternet {
+            return (false, "No internet connection. Please check your network.")
         } catch {
             return (false, "Network error: \(error.localizedDescription)")
         }

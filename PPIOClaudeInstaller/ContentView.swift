@@ -3,6 +3,7 @@ import SwiftUI
 enum InstallerStep: Int, CaseIterable {
     case welcome = 0
     case dependencyCheck
+    case networkSelection
     case apiKeyInput
     case modelSelection
     case validation
@@ -10,25 +11,65 @@ enum InstallerStep: Int, CaseIterable {
     case completion
 }
 
+// MARK: - 统一三段式布局容器
+
+struct PageLayout<Title: View, Content: View, Actions: View>: View {
+    let title: Title
+    let content: Content
+    let actions: Actions
+
+    init(
+        @ViewBuilder title: () -> Title,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder actions: () -> Actions
+    ) {
+        self.title = title()
+        self.content = content()
+        self.actions = actions()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            title
+                .frame(maxWidth: .infinity)
+                .padding(.top, 32)
+                .padding(.bottom, 20)
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                content
+                    .frame(maxWidth: 420)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            actions
+                .padding(.bottom, 32)
+        }
+    }
+}
+
+// MARK: - ContentView
+
 struct ContentView: View {
     @EnvironmentObject var state: InstallerState
 
     var body: some View {
         VStack(spacing: 0) {
-            // Progress indicator
-            if state.currentStep != .welcome && state.currentStep != .completion {
+            if state.currentStep != .welcome && state.currentStep != .completion && state.currentStep != .networkSelection {
                 StepIndicator(currentStep: state.currentStep)
-                    .padding(.top, 16)
-                    .padding(.bottom, 8)
+                    .padding(.top, 12)
+                    .padding(.bottom, 4)
             }
 
-            // Main content
             Group {
                 switch state.currentStep {
                 case .welcome:
                     WelcomeView()
                 case .dependencyCheck:
                     DependencyCheckView()
+                case .networkSelection:
+                    NetworkSelectionView()
                 case .apiKeyInput:
                     APIKeyInputView()
                 case .modelSelection:
@@ -47,30 +88,56 @@ struct ContentView: View {
     }
 }
 
+// MARK: - StepIndicator（精简：只有圆点，无文字标签）
+
 struct StepIndicator: View {
     let currentStep: InstallerStep
-    private let steps = ["Environment", "API Key", "Model", "Verify", "Install"]
+
+    private let steps: [(icon: String, rawValue: Int)] = [
+        ("wrench.and.screwdriver", 1),
+        ("key", 3),
+        ("cpu", 4),
+        ("checkmark.shield", 5),
+        ("gear", 6),
+    ]
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 0) {
             ForEach(0..<steps.count, id: \.self) { index in
-                let stepIndex = index + 1 // dependencyCheck starts at rawValue 1
-                HStack(spacing: 4) {
+                let step = steps[index]
+                let isActive = currentStep.rawValue >= step.rawValue
+                let isCurrent = isCurrentStep(step.rawValue)
+
+                ZStack {
                     Circle()
-                        .fill(stepIndex <= currentStep.rawValue ? Color.accentColor : Color.secondary.opacity(0.3))
-                        .frame(width: 8, height: 8)
-                    Text(steps[index])
-                        .font(.caption2)
-                        .foregroundColor(stepIndex <= currentStep.rawValue ? .primary : .secondary)
+                        .fill(isActive ? Color.accentColor : Color.secondary.opacity(0.08))
+                        .frame(width: 22, height: 22)
+                    Image(systemName: step.icon)
+                        .font(.system(size: 9, weight: .regular))
+                        .foregroundColor(isActive ? .white : .secondary.opacity(0.4))
                 }
+                .scaleEffect(isCurrent ? 1.15 : 1.0)
+
                 if index < steps.count - 1 {
                     Rectangle()
-                        .fill(stepIndex < currentStep.rawValue ? Color.accentColor : Color.secondary.opacity(0.3))
+                        .fill(currentStep.rawValue > step.rawValue ? Color.accentColor.opacity(0.5) : Color.secondary.opacity(0.08))
                         .frame(height: 1)
-                        .frame(maxWidth: 20)
+                        .frame(maxWidth: 32)
                 }
             }
         }
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 80)
+        .animation(.easeInOut(duration: 0.25), value: currentStep)
+    }
+
+    private func isCurrentStep(_ rawValue: Int) -> Bool {
+        switch currentStep {
+        case .dependencyCheck: return rawValue == 1
+        case .apiKeyInput: return rawValue == 3
+        case .modelSelection: return rawValue == 4
+        case .validation: return rawValue == 5
+        case .installConfig: return rawValue == 6
+        default: return false
+        }
     }
 }

@@ -4,44 +4,40 @@ struct ValidationView: View {
     @EnvironmentObject var state: InstallerState
 
     var body: some View {
-        VStack(spacing: 24) {
-            Text("Verify Connection")
-                .font(.title2.bold())
-
-            VStack(spacing: 8) {
-                Text("API Key: \(maskedKey)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text("Model: \(state.effectiveModelID)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+        PageLayout {
+            VStack(spacing: 6) {
+                Text("验证连接")
+                    .font(.title3.weight(.medium))
+                HStack(spacing: 8) {
+                    Text(maskedKey)
+                    Text("·")
+                    Text(state.effectiveModelID)
+                }
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fontDesign(.monospaced)
             }
-
-            Spacer()
-
+        } content: {
             validationContent
-
-            Spacer()
-
-            HStack(spacing: 12) {
-                Button("Back") { state.goBack() }
-                    .buttonStyle(.bordered)
+                .animation(.easeInOut(duration: 0.25), value: state.validationStatus)
+        } actions: {
+            HStack(spacing: 16) {
+                Button("上一步") { state.goBack() }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.secondary)
 
                 if state.validationStatus == .success {
-                    Button("Continue") { state.goNext() }
+                    Button("继续") { state.goNext() }
                         .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
                 }
 
                 if state.validationStatus == .failed {
-                    Button("Retry") {
-                        Task { await validate() }
-                    }
-                    .buttonStyle(.bordered)
+                    Button("重试") { Task { await validate() } }
+                        .buttonStyle(.bordered)
                 }
             }
-            .padding(.bottom, 20)
         }
-        .padding(.top, 20)
         .task { await validate() }
     }
 
@@ -51,34 +47,31 @@ struct ValidationView: View {
         case .idle, .validating:
             VStack(spacing: 12) {
                 ProgressView()
-                    .controlSize(.large)
-                Text("Validating API key and model...")
+                    .controlSize(.regular)
+                Text("正在验证...")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
         case .success:
-            VStack(spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 48))
+            VStack(spacing: 8) {
+                Image(systemName: "checkmark.circle")
+                    .font(.system(size: 32, weight: .regular))
                     .foregroundColor(.green)
-                Text("Connection verified!")
-                    .font(.headline)
-                    .foregroundColor(.green)
+                Text("连接验证成功")
+                    .font(.subheadline.weight(.medium))
             }
         case .failed:
-            VStack(spacing: 12) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 48))
+            VStack(spacing: 8) {
+                Image(systemName: "xmark.circle")
+                    .font(.system(size: 32, weight: .regular))
                     .foregroundColor(.red)
-                Text("Verification failed")
-                    .font(.headline)
-                    .foregroundColor(.red)
+                Text("验证失败")
+                    .font(.subheadline.weight(.medium))
                 if let error = state.validationError {
                     Text(error)
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
                 }
             }
         }
@@ -95,12 +88,10 @@ struct ValidationView: View {
     private func validate() async {
         state.validationStatus = .validating
         state.validationError = nil
-
         let (success, error) = await PPIOValidator.validate(
             apiKey: state.apiKey,
             modelID: state.effectiveModelID
         )
-
         state.validationStatus = success ? .success : .failed
         state.validationError = error
     }

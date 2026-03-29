@@ -28,6 +28,10 @@ class InstallerState: ObservableObject {
         DependencyItem(id: "claude-cli", name: "Claude Code CLI"),
     ]
     @Published var allDependenciesReady = false
+    @Published var useMirror = false
+    @Published var networkChecked = false
+    @Published var networkSlow = false
+    @Published var needsInstall = false
 
     // API Key
     @Published var apiKey = ""
@@ -50,6 +54,10 @@ class InstallerState: ObservableObject {
     // Validation
     @Published var validationStatus: ValidationStatus = .idle
     @Published var validationError: String?
+
+    // Conflict detection
+    @Published var conflicts: [ConflictingExport] = []
+    @Published var conflictsAcknowledged = false
 
     // Install
     @Published var installStatus: InstallStatus = .idle

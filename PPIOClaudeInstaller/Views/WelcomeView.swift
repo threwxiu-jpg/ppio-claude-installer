@@ -2,68 +2,71 @@ import SwiftUI
 
 struct WelcomeView: View {
     @EnvironmentObject var state: InstallerState
+    @State private var appeared = false
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 0) {
             Spacer()
 
-            // Logo area
-            ZStack {
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(LinearGradient(
-                        colors: [Color.blue.opacity(0.6), Color.purple.opacity(0.6)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
+            // Icon + Title 区域
+            VStack(spacing: 16) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
                     .frame(width: 80, height: 80)
-                Text("PP")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
+                    .scaleEffect(appeared ? 1.0 : 0.9)
+                    .opacity(appeared ? 1.0 : 0)
+
+                VStack(spacing: 4) {
+                    Text("PP Claude Code")
+                        .font(.system(size: 22, weight: .semibold))
+
+                    Text("安装助手 · v\(AppVersion.current)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
             }
 
-            VStack(spacing: 8) {
-                Text("PPIO Claude Code Installer")
-                    .font(.system(size: 24, weight: .semibold))
-                Text("One-click setup for Claude Code with PPIO")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-            }
+            Spacer().frame(height: 36)
 
-            VStack(alignment: .leading, spacing: 12) {
-                FeatureRow(icon: "checkmark.circle", text: "Auto-detect and install dependencies")
-                FeatureRow(icon: "key", text: "Configure your PPIO API key")
-                FeatureRow(icon: "cpu", text: "Choose from 10+ AI models")
-                FeatureRow(icon: "bolt", text: "Ready to use in minutes")
+            // Features — 细线图标，统一 .secondary
+            VStack(alignment: .leading, spacing: 14) {
+                FeatureRow(icon: "checkmark.shield", text: "自动检测并安装所需依赖")
+                FeatureRow(icon: "key", text: "配置你的 PP API Key")
+                FeatureRow(icon: "cpu", text: "支持 10+ 主流 AI 模型")
+                FeatureRow(icon: "bolt", text: "几分钟即可开始使用")
             }
-            .padding(.horizontal, 60)
 
             Spacer()
 
-            Button(action: { state.goNext() }) {
-                Text("Get Started")
-                    .font(.headline)
-                    .frame(maxWidth: 200)
-                    .padding(.vertical, 8)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            // CTA
+            Button("开始安装") { state.goNext() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
 
-            Spacer().frame(height: 30)
+            Spacer().frame(height: 32)
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.4)) { appeared = true }
         }
     }
 }
 
-struct FeatureRow: View {
+private struct FeatureRow: View {
     let icon: String
     let text: String
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .foregroundColor(.accentColor)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundColor(.secondary)
                 .frame(width: 20)
             Text(text)
                 .font(.subheadline)
+                .foregroundColor(.secondary)
         }
     }
 }

@@ -29,7 +29,6 @@ enum ShellExecutor {
 
                 do {
                     try process.run()
-                    process.waitUntilExit()
                 } catch {
                     continuation.resume(returning: ShellResult(
                         exitCode: -1,
@@ -39,8 +38,11 @@ enum ShellExecutor {
                     return
                 }
 
+                // Read pipe data BEFORE waitUntilExit to avoid deadlock
+                // when output exceeds the pipe buffer size (64KB)
                 let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
                 let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                process.waitUntilExit()
 
                 continuation.resume(returning: ShellResult(
                     exitCode: process.terminationStatus,
