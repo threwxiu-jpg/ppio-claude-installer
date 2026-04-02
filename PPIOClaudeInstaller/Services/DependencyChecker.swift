@@ -3,7 +3,7 @@ import Foundation
 enum DependencyChecker {
 
     // Ensure common tool paths are in PATH (App sandbox may not inherit shell profile)
-    private static let shellPrefix = "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"; "
+    private static let shellPrefix = "export PATH=\"$HOME/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"; "
 
     // MARK: - Check all
 
@@ -16,10 +16,16 @@ enum DependencyChecker {
             let status = await check(depID)
             state.dependencies[i].status = status
         }
-        state.allDependenciesReady = state.dependencies.allSatisfy {
+        // Homebrew is optional if Node.js and Claude CLI are already installed
+        let essentialReady = state.dependencies.filter { $0.id != "homebrew" }.allSatisfy {
             if case .installed = $0.status { return true }
             return false
         }
+        let allInstalled = state.dependencies.allSatisfy {
+            if case .installed = $0.status { return true }
+            return false
+        }
+        state.allDependenciesReady = allInstalled || essentialReady
     }
 
     // MARK: - Check individual
@@ -125,16 +131,26 @@ enum DependencyChecker {
         let installURL = useMirror
             ? "https://mirrors.ustc.edu.cn/misc/brew-install.sh"
             : "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
-        let result = await ShellExecutor.run(
-            "\(envPrefix) NONINTERACTIVE=1 /bin/bash -c \"$(curl -fsSL \(installURL))\""
+
+        // Homebrew refuses root AND needs sudo internally for /opt/homebrew ownership.
+        // Run in Terminal.app so the user can enter their password interactively.
+        let termCmd = "\(envPrefix)NONINTERACTIVE=1 /bin/bash -c \\\"$(curl -fsSL \(installURL))\\\"; echo '\\n[Homebrew 安装完成，可关闭此窗口]'; exec bash"
+        _ = await ShellExecutor.run(
+            "osascript -e 'tell application \"Terminal\" to do script \"\(termCmd)\"' -e 'tell application \"Terminal\" to activate'"
         )
-        if result.exitCode == 0 {
-            _ = await ShellExecutor.run(
-                "echo 'eval \"$(/opt/homebrew/bin/brew shellenv)\"' >> ~/.zprofile && eval \"$(/opt/homebrew/bin/brew shellenv)\""
-            )
-            return await checkHomebrew()
+
+        // Poll for completion (up to 10 minutes)
+        for _ in 0..<120 {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            let check = await checkHomebrew()
+            if case .installed = check {
+                _ = await ShellExecutor.run(
+                    "echo 'eval \"$(/opt/homebrew/bin/brew shellenv)\"' >> ~/.zprofile && eval \"$(/opt/homebrew/bin/brew shellenv)\""
+                )
+                return check
+            }
         }
-        return .failed("Homebrew 安装失败: \(result.error)")
+        return .failed("Homebrew 安装超时，请在终端手动运行安装命令")
     }
 
     // MARK: - Node.js
@@ -172,9 +188,33 @@ enum DependencyChecker {
 
     private static func installClaudeCLI(useMirror: Bool = false) async -> DependencyStatus {
         let registryCmd = useMirror ? npmMirrorCmd : ""
+        // First try without sudo
         let result = await ShellExecutor.run(shellPrefix + registryCmd + "npm install -g @anthropic-ai/claude-code")
         if result.exitCode == 0 {
             return await checkClaudeCLI()
+        }
+        // EACCES error — fix npm prefix permissions, then retry
+        if result.error.contains("EACCES") {
+            // Create user-owned npm global directory to avoid sudo
+            let fixPerms = await ShellExecutor.run(
+                "mkdir -p ~/.npm-global && npm config set prefix '~/.npm-global' && " +
+                "export PATH=~/.npm-global/bin:$PATH && " +
+                shellPrefix + registryCmd + "npm install -g @anthropic-ai/claude-code"
+            )
+            if fixPerms.exitCode == 0 {
+                // Add to shell profile so claude is found later
+                _ = await ShellExecutor.run(
+                    "echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zprofile"
+                )
+                return await checkClaudeCLI()
+            }
+            // Last resort: sudo
+            let sudoResult = await ShellExecutor.run(
+                "osascript -e 'do shell script \"" + shellPrefix + registryCmd + "npm install -g @anthropic-ai/claude-code\" with administrator privileges'"
+            )
+            if sudoResult.exitCode == 0 {
+                return await checkClaudeCLI()
+            }
         }
         return .failed("Claude CLI 安装失败: \(result.error)")
     }

@@ -11,6 +11,50 @@ This installer provides a step-by-step wizard that:
 3. **Lets you pick a model** - Choose from 10 built-in models (Claude, GPT, Gemini, DeepSeek, Grok, MiniMax, Doubao) or enter a custom model ID
 4. **Validates the connection** - Tests your API key against the PPIO endpoint before writing any config
 5. **Writes configuration** - Sets up `~/.zshrc` environment variables and `~/.claude/settings.json` so Claude Code connects through PPIO
+6. **Runs environment diagnostics** - Post-install health check verifying all configuration is effective, with CRITICAL / OPTIONAL severity levels
+
+## Configuration Written
+
+### ~/.zshrc
+
+```bash
+export ANTHROPIC_BASE_URL="https://api.ppio.com/anthropic"
+export ANTHROPIC_AUTH_TOKEN="sk_your_key"
+export ANTHROPIC_MODEL="pa/claude-sonnet-4-6"
+export ANTHROPIC_SMALL_FAST_MODEL="pa/claude-sonnet-4-6"
+export CLAUDE_CODE_SKIP_AUTH_LOGIN=1
+```
+
+### ~/.claude/settings.json
+
+```json
+{
+  "model": "pa/claude-sonnet-4-6",
+  "smallModel": "pa/claude-sonnet-4-6",
+  "skipDangerousModePermissionPrompt": true
+}
+```
+
+## Environment Diagnostics
+
+The completion page includes a built-in **Environment Doctor** that checks:
+
+| Check | Level | What it verifies |
+|-------|-------|-----------------|
+| Claude Code installed | CRITICAL | App in /Applications or CLI in PATH |
+| ANTHROPIC_BASE_URL | CRITICAL | Correct URL, no trailing `/v1` |
+| ANTHROPIC_AUTH_TOKEN | CRITICAL | Present and starts with `sk_` |
+| CLAUDE_CODE_SKIP_AUTH_LOGIN | CRITICAL | Set to `1` |
+| Network connectivity | CRITICAL | Can reach api.ppio.com |
+| API key validation | CRITICAL | Actual API request succeeds |
+| settings.json model | CRITICAL | Has `pa/` prefix |
+| Wrong variable name | CRITICAL | No `ANTHROPIC_API_KEY` (common mistake) |
+| ANTHROPIC_MODEL env | OPTIONAL | settings.json can substitute |
+| ANTHROPIC_SMALL_FAST_MODEL env | OPTIONAL | settings.json can substitute |
+| settings.json smallModel | OPTIONAL | Not strictly required |
+| ~/.claude permissions | OPTIONAL | Writable by current user |
+
+A standalone shell diagnostic script is also available at `scripts/cc-ppio-doctor.sh`.
 
 ## Supported Models
 
@@ -36,7 +80,7 @@ This installer provides a step-by-step wizard that:
 
 ```bash
 # Clone the repo
-git clone https://github.com/ppio/ppio-claude-installer.git
+git clone https://github.com/threwxiu-jpg/ppio-claude-installer.git
 cd ppio-claude-installer
 
 # Build
@@ -65,9 +109,10 @@ PPIOClaudeInstaller/
 ├── Services/
 │   ├── ConfigWriter.swift         # Writes ~/.zshrc and settings.json
 │   ├── DependencyChecker.swift    # Checks/installs dependencies
+│   ├── EnvironmentDoctor.swift    # Post-install environment diagnostics
 │   ├── PPIOValidator.swift        # Validates API key
 │   └── ShellExecutor.swift        # Shell command runner
-└── Views/                         # 7 wizard step views
+└── Views/                         # 8 wizard step views
 ```
 
 ## License

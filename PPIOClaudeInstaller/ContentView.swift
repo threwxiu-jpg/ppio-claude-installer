@@ -56,7 +56,7 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if state.currentStep != .welcome && state.currentStep != .completion && state.currentStep != .networkSelection {
+            if state.currentStep != .welcome && state.currentStep != .completion {
                 StepIndicator(currentStep: state.currentStep)
                     .padding(.top, 12)
                     .padding(.bottom, 4)

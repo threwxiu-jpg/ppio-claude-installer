@@ -3,6 +3,8 @@ import SwiftUI
 struct DependencyCheckView: View {
     @EnvironmentObject var state: InstallerState
     @State private var isChecking = false
+    @State private var isCheckingNetwork = false
+    @State private var networkChecked = false
 
     var body: some View {
         PageLayout {
@@ -25,14 +27,29 @@ struct DependencyCheckView: View {
                 }
             }
 
-            if state.useMirror && state.networkChecked {
-                HStack(spacing: 4) {
-                    Image(systemName: "bolt")
-                        .font(.system(size: 10, weight: .regular))
-                    Text("镜像加速已开启")
-                        .font(.caption)
+            // Mirror toggle — shown after network check if there are missing deps
+            if networkChecked && hasMissing {
+                HStack(spacing: 6) {
+                    Toggle(isOn: $state.useMirror) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "bolt")
+                                .font(.system(size: 10, weight: .regular))
+                            Text("镜像加速（USTC + npmmirror）")
+                                .font(.caption)
+                        }
+                    }
+                    .toggleStyle(.checkbox)
+                    .controlSize(.small)
                 }
                 .foregroundColor(.secondary)
+                .padding(.top, 12)
+            } else if isCheckingNetwork {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.mini)
+                    Text("正在检测网络...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 .padding(.top, 12)
             }
         } actions: {
@@ -54,6 +71,14 @@ struct DependencyCheckView: View {
         .task { await runChecks() }
     }
 
+    private var hasMissing: Bool {
+        state.dependencies.contains { dep in
+            if case .missing = dep.status { return true }
+            if case .failed = dep.status { return true }
+            return false
+        }
+    }
+
     private var statusMessage: String {
         if state.allDependenciesReady { return "所有依赖已就绪" }
         return "以下依赖需要安装"
@@ -64,15 +89,14 @@ struct DependencyCheckView: View {
         await DependencyChecker.checkAll(state: state)
         isChecking = false
 
-        let hasMissing = state.dependencies.contains { dep in
-            if case .missing = dep.status { return true }
-            if case .failed = dep.status { return true }
-            return false
-        }
-
-        if hasMissing && !state.networkChecked {
-            state.needsInstall = true
-            state.goNext()
+        // If deps are missing, auto-check network and default mirror on if slow
+        if hasMissing && !networkChecked {
+            isCheckingNetwork = true
+            state.networkSlow = await DependencyChecker.checkNetworkSpeed()
+            if state.networkSlow { state.useMirror = true }
+            state.networkChecked = true
+            networkChecked = true
+            isCheckingNetwork = false
         }
     }
 
@@ -81,10 +105,16 @@ struct DependencyCheckView: View {
         state.dependencies[index].status = .installing
         let status = await DependencyChecker.install(id, useMirror: state.useMirror)
         state.dependencies[index].status = status
-        state.allDependenciesReady = state.dependencies.allSatisfy {
+        // Homebrew is optional if Node.js and Claude CLI are already installed
+        let essentialReady = state.dependencies.filter { $0.id != "homebrew" }.allSatisfy {
             if case .installed = $0.status { return true }
             return false
         }
+        let allInstalled = state.dependencies.allSatisfy {
+            if case .installed = $0.status { return true }
+            return false
+        }
+        state.allDependenciesReady = allInstalled || essentialReady
     }
 }
 

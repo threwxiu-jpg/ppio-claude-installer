@@ -111,7 +111,7 @@ struct InstallConfigView: View {
                     .font(.subheadline.weight(.medium))
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("~/.claude/.env")
+                    Text("~/.zshrc")
                         .font(.system(.caption, design: .monospaced))
                     Text("~/.claude/settings.json")
                         .font(.system(.caption, design: .monospaced))

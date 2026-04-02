@@ -79,6 +79,10 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
 </plist>
 PLIST
 
+# Ad-hoc sign to prevent "damaged" error
+codesign --force --deep --sign - "$APP_DIR"
+xattr -cr "$APP_DIR"
+
 echo "=== Creating DMG ==="
 
 DMG_PATH="$OUTPUT_DIR/$DMG_NAME.dmg"
