@@ -1,6 +1,28 @@
 import Foundation
 import SwiftUI
 
+enum UrlMode: String, CaseIterable {
+    case ppio
+    case aiproxy
+    case custom
+
+    var label: String {
+        switch self {
+        case .ppio: return "PPIO"
+        case .aiproxy: return "AI Proxy"
+        case .custom: return "自定义"
+        }
+    }
+
+    var presetUrl: String? {
+        switch self {
+        case .ppio: return "https://api.ppio.com/anthropic"
+        case .aiproxy: return "https://apiproxy.paigod.work"
+        case .custom: return nil
+        }
+    }
+}
+
 enum DependencyStatus: Equatable {
     case unchecked
     case checking
@@ -33,10 +55,17 @@ class InstallerState: ObservableObject {
     @Published var networkSlow = false
     @Published var needsInstall = false
 
+    // URL Mode
+    @Published var urlMode: UrlMode = .ppio
+    @Published var baseUrl: String = "https://api.ppio.com/anthropic"
+
     // API Key
     @Published var apiKey = ""
     var isAPIKeyFormatValid: Bool {
-        apiKey.hasPrefix("sk_") && apiKey.count >= 20
+        if urlMode == .ppio {
+            return apiKey.hasPrefix("sk_") && apiKey.count >= 20
+        }
+        return apiKey.count >= 10
     }
 
     // Model

@@ -86,13 +86,42 @@ xattr -cr "$APP_DIR"
 echo "=== Creating DMG ==="
 
 DMG_PATH="$OUTPUT_DIR/$DMG_NAME.dmg"
-rm -f "$DMG_PATH"
+ICNS_PATH="$APP_DIR/Contents/Resources/AppIcon.icns"
+RW_DMG="$OUTPUT_DIR/${DMG_NAME}_rw.dmg"
+rm -f "$DMG_PATH" "$RW_DMG"
 
-# Create DMG with hdiutil
+# Create read-write DMG first (to set volume icon)
 hdiutil create -volname "$APP_NAME" \
     -srcfolder "$APP_DIR" \
-    -ov -format UDZO \
-    "$DMG_PATH"
+    -ov -format UDRW \
+    "$RW_DMG"
+
+# Mount, set volume icon, unmount
+MOUNT_DIR=$(hdiutil attach "$RW_DMG" -readwrite -noverify | grep "/Volumes/" | awk -F'\t' '{print $NF}')
+if [[ -n "$MOUNT_DIR" && -f "$ICNS_PATH" ]]; then
+    cp "$ICNS_PATH" "$MOUNT_DIR/.VolumeIcon.icns"
+    SetFile -a C "$MOUNT_DIR"
+    echo "Volume icon set"
+fi
+hdiutil detach "$MOUNT_DIR" -quiet
+
+# Convert to compressed DMG
+hdiutil convert "$RW_DMG" -format UDZO -o "$DMG_PATH"
+rm -f "$RW_DMG"
+
+# Set DMG file icon in Finder
+if [[ -f "$ICNS_PATH" ]]; then
+    # Use DeRez/Rez to embed icon into the DMG file resource fork
+    TEMP_RSRC="$OUTPUT_DIR/_icon_rsrc.r"
+    sips -i "$ICNS_PATH" 2>/dev/null || true
+    DeRez -only icns "$ICNS_PATH" > "$TEMP_RSRC" 2>/dev/null || true
+    if [[ -s "$TEMP_RSRC" ]]; then
+        Rez -append "$TEMP_RSRC" -o "$DMG_PATH"
+        SetFile -a C "$DMG_PATH"
+        echo "DMG file icon set"
+    fi
+    rm -f "$TEMP_RSRC"
+fi
 
 echo "=== Done ==="
 echo "DMG: $DMG_PATH"

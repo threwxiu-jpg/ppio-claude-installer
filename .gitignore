@@ -1,3 +1,4 @@
+# macOS / Swift
 .build/
 .swiftpm/
 *.xcodeproj/
@@ -5,3 +6,10 @@ xcuserdata/
 DerivedData/
 .DS_Store
 dist/
+
+# Windows / Electron
+win/node_modules/
+win/dist/
+win/dist-electron/
+win/release/
+*.log

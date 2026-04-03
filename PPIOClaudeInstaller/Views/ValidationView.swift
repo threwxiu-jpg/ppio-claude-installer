@@ -90,7 +90,8 @@ struct ValidationView: View {
         state.validationError = nil
         let (success, error) = await PPIOValidator.validate(
             apiKey: state.apiKey,
-            modelID: state.effectiveModelID
+            modelID: state.effectiveModelID,
+            baseUrl: state.baseUrl
         )
         state.validationStatus = success ? .success : .failed
         state.validationError = error

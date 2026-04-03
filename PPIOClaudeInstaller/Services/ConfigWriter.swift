@@ -91,7 +91,7 @@ enum ConfigWriter {
 
     // MARK: - Write config
 
-    static func writeConfig(apiKey: String, modelID: String) async -> (success: Bool, error: String?) {
+    static func writeConfig(apiKey: String, modelID: String, baseUrl: String) async -> (success: Bool, error: String?) {
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
         let claudeDir = homeDir.appendingPathComponent(".claude")
 
@@ -138,7 +138,7 @@ enum ConfigWriter {
 
         # PP Claude Code Configuration (managed by PP Installer, do not edit manually)
         export PATH="$HOME/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
-        export ANTHROPIC_BASE_URL="https://api.ppio.com/anthropic"
+        export ANTHROPIC_BASE_URL="\(baseUrl)"
         export ANTHROPIC_AUTH_TOKEN="\(apiKey)"
         export ANTHROPIC_MODEL="\(modelID)"
         export ANTHROPIC_SMALL_FAST_MODEL="\(modelID)"

@@ -1,0 +1,14 @@
+appId: com.ppio.claude-installer
+productName: PP Claude Installer
+directories:
+  output: release
+win:
+  icon: resources/icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: PP Claude Installer

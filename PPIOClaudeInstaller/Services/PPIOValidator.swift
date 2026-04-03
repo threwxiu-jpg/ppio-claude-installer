@@ -1,8 +1,10 @@
 import Foundation
 
 enum PPIOValidator {
-    static func validate(apiKey: String, modelID: String) async -> (success: Bool, error: String?) {
-        let url = URL(string: "https://api.ppio.com/anthropic/v1/messages")!
+    static func validate(apiKey: String, modelID: String, baseUrl: String) async -> (success: Bool, error: String?) {
+        guard let url = URL(string: baseUrl + "/v1/messages") else {
+            return (false, "Base URL 格式无效")
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

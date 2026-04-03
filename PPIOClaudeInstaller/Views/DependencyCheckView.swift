@@ -1,10 +1,23 @@
 import SwiftUI
 
+private let prereqIDs: Set<String> = ["xcode-clt", "homebrew"]
+private let toolIDs: Set<String> = ["nodejs", "claude-cli"]
+
 struct DependencyCheckView: View {
     @EnvironmentObject var state: InstallerState
     @State private var isChecking = false
     @State private var isCheckingNetwork = false
     @State private var networkChecked = false
+
+    private var prereqs: [DependencyItem] {
+        state.dependencies.filter { prereqIDs.contains($0.id) }
+    }
+    private var tools: [DependencyItem] {
+        state.dependencies.filter { toolIDs.contains($0.id) }
+    }
+    private var prereqsReady: Bool {
+        prereqs.allSatisfy { if case .installed = $0.status { return true }; return false }
+    }
 
     var body: some View {
         PageLayout {
@@ -17,17 +30,55 @@ struct DependencyCheckView: View {
             }
         } content: {
             VStack(spacing: 0) {
-                ForEach(Array(state.dependencies.enumerated()), id: \.element.id) { index, dep in
+                // Group 1: Prerequisites
+                Text("基础环境")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+                    .padding(.bottom, 4)
+
+                ForEach(Array(prereqs.enumerated()), id: \.element.id) { index, dep in
                     DependencyRow(item: dep) {
                         await installDependency(dep.id)
                     }
-                    if index < state.dependencies.count - 1 {
+                    if index < prereqs.count - 1 {
                         Divider().padding(.leading, 32)
                     }
                 }
+
+                Divider().padding(.vertical, 8)
+
+                // Group 2: Tools (locked until prereqs ready)
+                HStack(spacing: 6) {
+                    Text("开发工具")
+                        .font(.system(.caption2, design: .monospaced))
+                    if !prereqsReady {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 8))
+                        Text("请先完成基础环境安装")
+                            .font(.caption2)
+                    }
+                }
+                .foregroundColor(prereqsReady ? .secondary : .secondary.opacity(0.5))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
+                .padding(.bottom, 4)
+
+                Group {
+                    ForEach(Array(tools.enumerated()), id: \.element.id) { index, dep in
+                        DependencyRow(item: dep, disabled: !prereqsReady) {
+                            await installDependency(dep.id)
+                        }
+                        if index < tools.count - 1 {
+                            Divider().padding(.leading, 32)
+                        }
+                    }
+                }
+                .opacity(prereqsReady ? 1 : 0.4)
             }
 
-            // Mirror toggle — shown after network check if there are missing deps
+            // Mirror toggle
             if networkChecked && hasMissing {
                 HStack(spacing: 6) {
                     Toggle(isOn: $state.useMirror) {
@@ -89,7 +140,6 @@ struct DependencyCheckView: View {
         await DependencyChecker.checkAll(state: state)
         isChecking = false
 
-        // If deps are missing, auto-check network and default mirror on if slow
         if hasMissing && !networkChecked {
             isCheckingNetwork = true
             state.networkSlow = await DependencyChecker.checkNetworkSpeed()
@@ -105,7 +155,6 @@ struct DependencyCheckView: View {
         state.dependencies[index].status = .installing
         let status = await DependencyChecker.install(id, useMirror: state.useMirror)
         state.dependencies[index].status = status
-        // Homebrew is optional if Node.js and Claude CLI are already installed
         let essentialReady = state.dependencies.filter { $0.id != "homebrew" }.allSatisfy {
             if case .installed = $0.status { return true }
             return false
@@ -120,6 +169,7 @@ struct DependencyCheckView: View {
 
 private struct DependencyRow: View {
     let item: DependencyItem
+    var disabled: Bool = false
     let onInstall: () async -> Void
     @State private var isInstalling = false
 
@@ -138,11 +188,13 @@ private struct DependencyRow: View {
 
             Spacer()
 
-            if case .missing = item.status {
-                installButton
-            }
-            if case .failed = item.status {
-                installButton
+            if !disabled {
+                if case .missing = item.status {
+                    installButton
+                }
+                if case .failed = item.status {
+                    installButton
+                }
             }
         }
         .padding(.vertical, 10)

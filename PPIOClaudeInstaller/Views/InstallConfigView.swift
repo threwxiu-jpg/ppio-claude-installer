@@ -145,7 +145,8 @@ struct InstallConfigView: View {
         state.installError = nil
         let (success, error) = await ConfigWriter.writeConfig(
             apiKey: state.apiKey,
-            modelID: state.effectiveModelID
+            modelID: state.effectiveModelID,
+            baseUrl: state.baseUrl
         )
         state.installStatus = success ? .success : .failed
         state.installError = error

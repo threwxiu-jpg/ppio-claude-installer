@@ -27,21 +27,21 @@ enum DiagnosticStatus {
 
 enum EnvironmentDoctor {
 
-    static func runAll(apiKey: String, modelID: String) async -> [DiagnosticResult] {
+    static func runAll(apiKey: String, modelID: String, baseUrl: String) async -> [DiagnosticResult] {
         var results: [DiagnosticResult] = []
 
         // --- CRITICAL checks ---
 
         results.append(checkClaudeInstalled())
-        results.append(contentsOf: checkShellExports())
+        results.append(contentsOf: checkShellExports(baseUrl: baseUrl))
         results.append(checkSettingsJSON())
-        results.append(await checkNetwork())
-        results.append(await checkAPIKey(apiKey: apiKey, modelID: modelID))
+        results.append(await checkNetwork(baseUrl: baseUrl))
+        results.append(await checkAPIKey(apiKey: apiKey, modelID: modelID, baseUrl: baseUrl))
 
         // --- OPTIONAL checks ---
 
-        results.append(checkOptionalEnvVar("ANTHROPIC_MODEL", pattern: "pa/"))
-        results.append(checkOptionalEnvVar("ANTHROPIC_SMALL_FAST_MODEL", pattern: "pa/"))
+        results.append(checkOptionalEnvVar("ANTHROPIC_MODEL", pattern: "/"))
+        results.append(checkOptionalEnvVar("ANTHROPIC_SMALL_FAST_MODEL", pattern: "/"))
         results.append(checkSettingsSmallModel())
         results.append(checkClaudeDirPermissions())
 
@@ -82,7 +82,7 @@ enum EnvironmentDoctor {
         }
     }
 
-    private static func checkShellExports() -> [DiagnosticResult] {
+    private static func checkShellExports(baseUrl: String) -> [DiagnosticResult] {
         var results: [DiagnosticResult] = []
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
         let zshrcPath = homeDir.appendingPathComponent(".zshrc")
@@ -101,12 +101,10 @@ enum EnvironmentDoctor {
 
         // ANTHROPIC_BASE_URL
         if let val = extractExportValue(from: activeContent, variable: "ANTHROPIC_BASE_URL") {
-            if val.contains("api.ppio.com/anthropic") && !val.hasSuffix("/v1") {
+            if val == baseUrl {
                 results.append(DiagnosticResult(name: "ANTHROPIC_BASE_URL", level: .critical, status: .pass, message: val))
             } else {
-                var hint = val
-                if val.hasSuffix("/v1") { hint = "Remove trailing /v1" }
-                results.append(DiagnosticResult(name: "ANTHROPIC_BASE_URL", level: .critical, status: .fail, message: hint))
+                results.append(DiagnosticResult(name: "ANTHROPIC_BASE_URL", level: .critical, status: .fail, message: "Expected: \(baseUrl), got: \(val)"))
             }
         } else {
             results.append(DiagnosticResult(name: "ANTHROPIC_BASE_URL", level: .critical, status: .fail, message: "Not set in ~/.zshrc"))
@@ -114,11 +112,11 @@ enum EnvironmentDoctor {
 
         // ANTHROPIC_AUTH_TOKEN
         if let val = extractExportValue(from: activeContent, variable: "ANTHROPIC_AUTH_TOKEN") {
-            if val.hasPrefix("sk_") {
+            if val.count >= 10 {
                 let masked = String(val.prefix(6)) + "..." + String(val.suffix(4))
                 results.append(DiagnosticResult(name: "ANTHROPIC_AUTH_TOKEN", level: .critical, status: .pass, message: masked))
             } else {
-                results.append(DiagnosticResult(name: "ANTHROPIC_AUTH_TOKEN", level: .critical, status: .fail, message: "Value doesn't start with sk_"))
+                results.append(DiagnosticResult(name: "ANTHROPIC_AUTH_TOKEN", level: .critical, status: .fail, message: "Token too short"))
             }
         } else {
             results.append(DiagnosticResult(name: "ANTHROPIC_AUTH_TOKEN", level: .critical, status: .fail, message: "Not set in ~/.zshrc"))
@@ -148,16 +146,18 @@ enum EnvironmentDoctor {
                                    message: "Missing or invalid ~/.claude/settings.json")
         }
 
-        if let model = json["model"] as? String, model.hasPrefix("pa/") {
+        if let model = json["model"] as? String, model.contains("/") {
             return DiagnosticResult(name: "settings.json model", level: .critical, status: .pass, message: model)
         } else {
             return DiagnosticResult(name: "settings.json model", level: .critical, status: .fail,
-                                   message: "Missing or no pa/ prefix")
+                                   message: "Missing or invalid model ID")
         }
     }
 
-    private static func checkNetwork() async -> DiagnosticResult {
-        let url = URL(string: "https://api.ppio.com/anthropic/v1/models")!
+    private static func checkNetwork(baseUrl: String) async -> DiagnosticResult {
+        guard let url = URL(string: baseUrl + "/v1/models") else {
+            return DiagnosticResult(name: "Network", level: .critical, status: .fail, message: "Invalid base URL")
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 10
@@ -167,7 +167,7 @@ enum EnvironmentDoctor {
             if let http = response as? HTTPURLResponse {
                 if http.statusCode == 401 || http.statusCode == 200 {
                     return DiagnosticResult(name: "Network", level: .critical, status: .pass,
-                                           message: "PPIO API reachable (\(http.statusCode))")
+                                           message: "API reachable (\(http.statusCode))")
                 } else {
                     return DiagnosticResult(name: "Network", level: .critical, status: .warn,
                                            message: "HTTP \(http.statusCode)")
@@ -176,15 +176,15 @@ enum EnvironmentDoctor {
             return DiagnosticResult(name: "Network", level: .critical, status: .fail, message: "Invalid response")
         } catch {
             return DiagnosticResult(name: "Network", level: .critical, status: .fail,
-                                   message: "Cannot reach api.ppio.com: \(error.localizedDescription)")
+                                   message: "Cannot reach API: \(error.localizedDescription)")
         }
     }
 
-    private static func checkAPIKey(apiKey: String, modelID: String) async -> DiagnosticResult {
+    private static func checkAPIKey(apiKey: String, modelID: String, baseUrl: String) async -> DiagnosticResult {
         if apiKey.isEmpty {
             return DiagnosticResult(name: "API validation", level: .critical, status: .fail, message: "No API key")
         }
-        let (success, error) = await PPIOValidator.validate(apiKey: apiKey, modelID: modelID)
+        let (success, error) = await PPIOValidator.validate(apiKey: apiKey, modelID: modelID, baseUrl: baseUrl)
         if success {
             return DiagnosticResult(name: "API validation", level: .critical, status: .pass, message: "Request succeeded")
         } else {
@@ -207,7 +207,7 @@ enum EnvironmentDoctor {
                 return DiagnosticResult(name: variable, level: .optional, status: .pass, message: val)
             } else {
                 return DiagnosticResult(name: variable, level: .optional, status: .fail,
-                                       message: "Missing \(pattern) prefix: \(val)")
+                                       message: "Invalid model ID: \(val)")
             }
         } else {
             return DiagnosticResult(name: variable, level: .optional, status: .warn,
@@ -221,9 +221,9 @@ enum EnvironmentDoctor {
 
         guard let data = try? Data(contentsOf: path),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let val = json["smallModel"] as? String, val.hasPrefix("pa/") else {
+              let val = json["smallModel"] as? String, val.contains("/") else {
             return DiagnosticResult(name: "settings.json smallModel", level: .optional, status: .warn,
-                                   message: "Not set or missing pa/ prefix")
+                                   message: "Not set or invalid model ID")
         }
         return DiagnosticResult(name: "settings.json smallModel", level: .optional, status: .pass, message: val)
     }

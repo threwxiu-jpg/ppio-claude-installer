@@ -132,7 +132,8 @@ struct CompletionView: View {
         state.diagnosticStatus = .running
         state.diagnosticResults = await EnvironmentDoctor.runAll(
             apiKey: state.apiKey,
-            modelID: state.effectiveModelID
+            modelID: state.effectiveModelID,
+            baseUrl: state.baseUrl
         )
         state.diagnosticStatus = .done
     }
