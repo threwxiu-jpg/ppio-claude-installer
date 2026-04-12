@@ -98,9 +98,9 @@ private struct NetworkCard: View {
                     .frame(width: 2)
                     .padding(.vertical, 8)
 
-                VStack(spacing: 4) {
+                VStack(spacing: 3) {
                     Image(systemName: icon)
-                        .font(.system(size: 18, weight: .regular))
+                        .font(.system(size: 14, weight: .regular))
                         .foregroundColor(isSelected ? .accentColor : .secondary)
                     Text(title)
                         .font(.subheadline.weight(.medium))
@@ -110,7 +110,7 @@ private struct NetworkCard: View {
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
+                .padding(.vertical, 10)
             }
             .background(
                 RoundedRectangle(cornerRadius: 8)

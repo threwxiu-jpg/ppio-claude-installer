@@ -54,20 +54,13 @@ enum EnvironmentDoctor {
         let fm = FileManager.default
         let hasApp = fm.fileExists(atPath: "/Applications/Claude.app")
 
-        let pipe = Pipe()
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        process.arguments = ["claude"]
-        process.standardOutput = pipe
-        process.standardError = pipe
-        let hasCLI: Bool
-        do {
-            try process.run()
-            process.waitUntilExit()
-            hasCLI = process.terminationStatus == 0
-        } catch {
-            hasCLI = false
-        }
+        // Check known install paths directly (GUI app PATH may not include ~/.npm-global/bin)
+        let candidatePaths = [
+            "\(NSHomeDirectory())/.npm-global/bin/claude",
+            "/opt/homebrew/bin/claude",
+            "/usr/local/bin/claude",
+        ]
+        let hasCLI = candidatePaths.contains { fm.fileExists(atPath: $0) }
 
         if hasApp && hasCLI {
             return DiagnosticResult(name: "Claude Code", level: .critical, status: .pass,
