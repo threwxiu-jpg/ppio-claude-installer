@@ -2,8 +2,8 @@ import SwiftUI
 
 enum InstallerStep: Int, CaseIterable {
     case welcome = 0
-    case dependencyCheck
     case networkSelection
+    case dependencyCheck
     case apiKeyInput
     case modelSelection
     case validation
@@ -94,7 +94,8 @@ struct StepIndicator: View {
     let currentStep: InstallerStep
 
     private let steps: [(icon: String, rawValue: Int)] = [
-        ("wrench.and.screwdriver", 1),
+        ("bolt", 1),
+        ("wrench.and.screwdriver", 2),
         ("key", 3),
         ("cpu", 4),
         ("checkmark.shield", 5),
@@ -132,7 +133,8 @@ struct StepIndicator: View {
 
     private func isCurrentStep(_ rawValue: Int) -> Bool {
         switch currentStep {
-        case .dependencyCheck: return rawValue == 1
+        case .networkSelection: return rawValue == 1
+        case .dependencyCheck: return rawValue == 2
         case .apiKeyInput: return rawValue == 3
         case .modelSelection: return rawValue == 4
         case .validation: return rawValue == 5

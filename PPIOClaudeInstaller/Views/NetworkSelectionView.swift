@@ -9,7 +9,7 @@ struct NetworkSelectionView: View {
             VStack(spacing: 6) {
                 Text("网络环境")
                     .font(.title3.weight(.medium))
-                Text("检测到有依赖需要安装")
+                Text("配置安装加速方式")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -64,7 +64,7 @@ struct NetworkSelectionView: View {
                         .foregroundColor(.secondary)
                     Button("开始安装") {
                         state.networkChecked = true
-                        state.goBack()
+                        state.goNext()
                     }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)

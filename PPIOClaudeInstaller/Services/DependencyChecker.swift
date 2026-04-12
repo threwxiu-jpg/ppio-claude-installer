@@ -68,6 +68,29 @@ enum DependencyChecker {
         }
     }
 
+    // MARK: - Injectables (can be overridden in tests)
+
+    /// Opens a Terminal window and runs the script at the given file path.
+    nonisolated(unsafe) static var terminalLauncher: (String) async -> Void = { scriptPath in
+        // Pass only a simple file path — avoids quoting/escaping issues in osascript
+        _ = await ShellExecutor.run(
+            "osascript " +
+            "-e 'tell application \"Terminal\" to activate' " +
+            "-e 'tell application \"Terminal\" to do script \"bash \(scriptPath)\"' " +
+            "-e 'delay 0.5' " +
+            "-e 'tell application \"Terminal\" to activate'"
+        )
+    }
+
+    /// Nanoseconds between each brew-install poll. Set to 0 in tests.
+    nonisolated(unsafe) static var pollInterval: UInt64 = 2_000_000_000  // 2 seconds
+
+    /// Number of poll attempts before giving up. Set to small value in tests.
+    nonisolated(unsafe) static var homebrewPollCount: Int = 120  // 10 minutes
+
+    /// Checker called inside the poll loop. Defaults to the real brew check; override in tests.
+    nonisolated(unsafe) static var homebrewChecker: () async -> DependencyStatus = { await checkHomebrew() }
+
     // MARK: - Mirror config
 
     private static let mirrorEnv = "export HOMEBREW_BREW_GIT_REMOTE=\"https://mirrors.ustc.edu.cn/brew.git\"; export HOMEBREW_CORE_GIT_REMOTE=\"https://mirrors.ustc.edu.cn/homebrew-core.git\"; export HOMEBREW_API_DOMAIN=\"https://mirrors.ustc.edu.cn/homebrew-bottles/api\"; export HOMEBREW_BOTTLE_DOMAIN=\"https://mirrors.ustc.edu.cn/homebrew-bottles\"; "
@@ -118,10 +141,23 @@ enum DependencyChecker {
 
     // MARK: - Homebrew
 
-    private static func checkHomebrew() async -> DependencyStatus {
+    static func checkHomebrew() async -> DependencyStatus {
+        // Check known brew locations directly (avoids PATH lookup failures)
+        // Treat file existence as sufficient — freshly installed brew (especially via USTC
+        // mirror) may exit non-zero on `--version` due to git config errors, but the
+        // binary is usable for installing packages.
+        let candidates = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+        for path in candidates {
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            let result = await ShellExecutor.run("\(path) --version")
+            let version = result.output.components(separatedBy: "\n").first ?? ""
+            return .installed(version: version.isEmpty ? "installed" : version)
+        }
+        // Fallback: try via PATH
         let result = await ShellExecutor.run(shellPrefix + "brew --version")
-        if result.exitCode == 0, let firstLine = result.output.components(separatedBy: "\n").first {
-            return .installed(version: firstLine)
+        if result.exitCode == 0 {
+            let version = result.output.components(separatedBy: "\n").first ?? ""
+            return .installed(version: version.isEmpty ? "installed" : version)
         }
         return .missing
     }
@@ -132,17 +168,45 @@ enum DependencyChecker {
             ? "https://mirrors.ustc.edu.cn/misc/brew-install.sh"
             : "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
 
-        // Homebrew refuses root AND needs sudo internally for /opt/homebrew ownership.
-        // Run in Terminal.app so the user can enter their password interactively.
-        let termCmd = "\(envPrefix)NONINTERACTIVE=1 /bin/bash -c \\\"$(curl -fsSL \(installURL))\\\"; echo '\\n[Homebrew 安装完成，可关闭此窗口]'; exec bash"
-        _ = await ShellExecutor.run(
-            "osascript -e 'tell application \"Terminal\" to do script \"\(termCmd)\"' -e 'tell application \"Terminal\" to activate'"
-        )
+        // Write install script to a temp file — avoids quoting issues when passing to osascript.
+        // Homebrew refuses root AND needs sudo internally, so we run in Terminal.app.
+        let scriptPath = "/tmp/ppio_brew_install.sh"
+        // For the USTC mirror, the install script calls `git remote set-head origin --auto`
+        // which fails because the mirror server does not expose the git symref protocol.
+        // Fix: download the script, patch every `"--auto"` in a set-head call to `"main"`,
+        // then run the patched version. For the official GitHub script this is a no-op safe change.
+        let script = """
+        #!/bin/bash
+        git config --global init.defaultBranch main 2>/dev/null || true
 
-        // Poll for completion (up to 10 minutes)
-        for _ in 0..<120 {
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
-            let check = await checkHomebrew()
+        _RAW=/tmp/ppio_brew_raw.sh
+        _PATCHED=/tmp/ppio_brew_patched.sh
+        if curl -fsSL "\(installURL)" -o "$_RAW"; then
+            sed 's/set-head" "origin" "--auto"/set-head" "origin" "main"/g' "$_RAW" > "$_PATCHED"
+            chmod +x "$_PATCHED"
+            \(envPrefix)bash "$_PATCHED"
+        else
+            echo "[✗ 无法下载 Homebrew 安装脚本，请检查网络]"
+            exec bash
+            exit 1
+        fi
+
+        echo ""
+        if [ -f /opt/homebrew/bin/brew ] || [ -f /usr/local/bin/brew ]; then
+            echo "[✓ Homebrew 安装完成，可关闭此窗口]"
+        else
+            echo "[✗ Homebrew 安装失败，请查看上方错误后重试]"
+        fi
+        exec bash
+        """
+        try? script.write(toFile: scriptPath, atomically: true, encoding: .utf8)
+        _ = await ShellExecutor.run("chmod +x '\(scriptPath)'")
+        await terminalLauncher(scriptPath)
+
+        // Poll for completion
+        for _ in 0..<homebrewPollCount {
+            if pollInterval > 0 { try? await Task.sleep(nanoseconds: pollInterval) }
+            let check = await homebrewChecker()
             if case .installed = check {
                 _ = await ShellExecutor.run(
                     "echo 'eval \"$(/opt/homebrew/bin/brew shellenv)\"' >> ~/.zprofile && eval \"$(/opt/homebrew/bin/brew shellenv)\""
@@ -156,20 +220,46 @@ enum DependencyChecker {
     // MARK: - Node.js
 
     private static func checkNodeJS() async -> DependencyStatus {
+        // Check known node paths directly first (same strategy as checkHomebrew)
+        let candidates = [
+            "/opt/homebrew/bin/node",
+            "/usr/local/bin/node",
+        ]
+        for path in candidates {
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            let result = await ShellExecutor.run("\(path) --version")
+            if result.exitCode == 0 {
+                let v = result.output.replacingOccurrences(of: "v", with: "")
+                if let major = Int(v.components(separatedBy: ".").first ?? "0"), major >= 18 {
+                    return .installed(version: result.output)
+                }
+                // Found but too old — keep checking other paths
+            }
+        }
+        // Fallback: try via PATH
         let result = await ShellExecutor.run(shellPrefix + "node --version")
         if result.exitCode == 0 {
-            let version = result.output.replacingOccurrences(of: "v", with: "")
-            if let major = Int(version.components(separatedBy: ".").first ?? "0"), major >= 18 {
+            let v = result.output.replacingOccurrences(of: "v", with: "")
+            if let major = Int(v.components(separatedBy: ".").first ?? "0"), major >= 18 {
                 return .installed(version: result.output)
             }
-            return .failed("Node.js version too old: \(result.output). Need >= 18.")
+            return .failed("Node.js 版本过低: \(result.output)，需要 >= 18")
         }
         return .missing
     }
 
     private static func installNodeJS(useMirror: Bool = false) async -> DependencyStatus {
+        // Verify Homebrew is available first
+        let brewCheck = await checkHomebrew()
+        guard case .installed = brewCheck else {
+            return .failed("请先安装 Homebrew，再安装 Node.js")
+        }
+
         let envPrefix = useMirror ? mirrorEnv : ""
-        let result = await ShellExecutor.run(shellPrefix + envPrefix + "brew install node")
+        // Use `brew upgrade node || brew install node` to handle both fresh and old installs
+        let result = await ShellExecutor.run(
+            shellPrefix + envPrefix + "(brew upgrade node 2>/dev/null || brew install node)"
+        )
         if result.exitCode == 0 {
             return await checkNodeJS()
         }
@@ -179,6 +269,19 @@ enum DependencyChecker {
     // MARK: - Claude CLI
 
     private static func checkClaudeCLI() async -> DependencyStatus {
+        let candidates = [
+            "\(NSHomeDirectory())/.npm-global/bin/claude",
+            "/opt/homebrew/bin/claude",
+            "/usr/local/bin/claude",
+        ]
+        for path in candidates {
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            let result = await ShellExecutor.run("\(path) --version")
+            if result.exitCode == 0 {
+                return .installed(version: result.output)
+            }
+        }
+        // Fallback: try via PATH
         let result = await ShellExecutor.run(shellPrefix + "claude --version")
         if result.exitCode == 0 {
             return .installed(version: result.output)
@@ -208,9 +311,13 @@ enum DependencyChecker {
                 )
                 return await checkClaudeCLI()
             }
-            // Last resort: sudo
+            // Last resort: sudo via temp script to avoid osascript escaping issues
+            let sudoScript = "/tmp/ppio_npm_sudo.sh"
+            let sudoContent = "#!/bin/bash\n" + shellPrefix + registryCmd + "npm install -g @anthropic-ai/claude-code\n"
+            try? sudoContent.write(toFile: sudoScript, atomically: true, encoding: .utf8)
+            _ = await ShellExecutor.run("chmod +x '\(sudoScript)'")
             let sudoResult = await ShellExecutor.run(
-                "osascript -e 'do shell script \"" + shellPrefix + registryCmd + "npm install -g @anthropic-ai/claude-code\" with administrator privileges'"
+                "osascript -e 'do shell script \"bash \(sudoScript)\" with administrator privileges'"
             )
             if sudoResult.exitCode == 0 {
                 return await checkClaudeCLI()

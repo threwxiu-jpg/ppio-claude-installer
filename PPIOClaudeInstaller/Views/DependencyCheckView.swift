@@ -1,13 +1,11 @@
 import SwiftUI
 
-private let prereqIDs: Set<String> = ["xcode-clt", "homebrew"]
-private let toolIDs: Set<String> = ["nodejs", "claude-cli"]
+private let prereqIDs: Set<String> = ["xcode-clt", "homebrew", "nodejs"]
+private let toolIDs: Set<String> = ["claude-cli"]
 
 struct DependencyCheckView: View {
     @EnvironmentObject var state: InstallerState
     @State private var isChecking = false
-    @State private var isCheckingNetwork = false
-    @State private var networkChecked = false
 
     private var prereqs: [DependencyItem] {
         state.dependencies.filter { prereqIDs.contains($0.id) }
@@ -16,7 +14,11 @@ struct DependencyCheckView: View {
         state.dependencies.filter { toolIDs.contains($0.id) }
     }
     private var prereqsReady: Bool {
-        prereqs.allSatisfy { if case .installed = $0.status { return true }; return false }
+        // Homebrew is optional — mirror essentialReady logic in DependencyChecker.checkAll
+        prereqs.filter { $0.id != "homebrew" }.allSatisfy {
+            if case .installed = $0.status { return true }
+            return false
+        }
     }
 
     var body: some View {
@@ -51,7 +53,7 @@ struct DependencyCheckView: View {
 
                 // Group 2: Tools (locked until prereqs ready)
                 HStack(spacing: 6) {
-                    Text("开发工具")
+                    Text("Claude Code")
                         .font(.system(.caption2, design: .monospaced))
                     if !prereqsReady {
                         Image(systemName: "lock.fill")
@@ -79,7 +81,7 @@ struct DependencyCheckView: View {
             }
 
             // Mirror toggle
-            if networkChecked && hasMissing {
+            if hasMissing {
                 HStack(spacing: 6) {
                     Toggle(isOn: $state.useMirror) {
                         HStack(spacing: 4) {
@@ -94,14 +96,6 @@ struct DependencyCheckView: View {
                 }
                 .foregroundColor(.secondary)
                 .padding(.top, 12)
-            } else if isCheckingNetwork {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.mini)
-                    Text("正在检测网络...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.top, 12)
             }
         } actions: {
             HStack(spacing: 16) {
@@ -110,7 +104,7 @@ struct DependencyCheckView: View {
                     .foregroundColor(.secondary)
 
                 if state.allDependenciesReady {
-                    Button("继续") { state.currentStep = .apiKeyInput }
+                    Button("继续") { state.goNext() }
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
                 } else if !isChecking {
@@ -139,15 +133,6 @@ struct DependencyCheckView: View {
         isChecking = true
         await DependencyChecker.checkAll(state: state)
         isChecking = false
-
-        if hasMissing && !networkChecked {
-            isCheckingNetwork = true
-            state.networkSlow = await DependencyChecker.checkNetworkSpeed()
-            if state.networkSlow { state.useMirror = true }
-            state.networkChecked = true
-            networkChecked = true
-            isCheckingNetwork = false
-        }
     }
 
     private func installDependency(_ id: String) async {
@@ -172,6 +157,35 @@ private struct DependencyRow: View {
     var disabled: Bool = false
     let onInstall: () async -> Void
     @State private var isInstalling = false
+    @State private var installProgress: Double = 0
+    @State private var progressMessage: String = "准备中..."
+
+    // Expected install durations (seconds) for determinate progress
+    // Use generous values — bar caps at 0.95 so it won't run out early
+    private var expectedDuration: Double {
+        switch item.id {
+        case "nodejs":    return 180
+        case "claude-cli": return 120
+        default:          return 0   // 0 = indeterminate
+        }
+    }
+
+    private func stepMessage(for progress: Double) -> String {
+        switch item.id {
+        case "nodejs":
+            if progress < 0.15 { return "连接 Homebrew..." }
+            if progress < 0.65 { return "下载 Node.js..." }
+            return "安装中..."
+        case "claude-cli":
+            if progress < 0.25 { return "连接 npm 仓库..." }
+            if progress < 0.75 { return "下载 claude-code 包..." }
+            return "安装中..."
+        case "homebrew":
+            return "请切换到终端窗口并输入密码（未看到请点击 Dock 中的终端图标）"
+        default:
+            return "安装中..."
+        }
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -199,6 +213,20 @@ private struct DependencyRow: View {
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 4)
+        .task(id: isInstalling) {
+            guard isInstalling else { return }
+            // Set the initial message immediately for ALL items (incl. indeterminate)
+            installProgress = 0
+            progressMessage = stepMessage(for: 0)
+            guard expectedDuration > 0 else { return }  // indeterminate stops here
+            let start = Date()
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                let p = min(Date().timeIntervalSince(start) / expectedDuration, 0.95)
+                installProgress = p
+                progressMessage = stepMessage(for: p)
+            }
+        }
     }
 
     private var installButton: some View {
@@ -207,6 +235,7 @@ private struct DependencyRow: View {
             Task {
                 await onInstall()
                 isInstalling = false
+                installProgress = 1.0
             }
         }
         .buttonStyle(.bordered)
@@ -244,7 +273,22 @@ private struct DependencyRow: View {
         switch item.status {
         case .unchecked: Text("等待检查...")
         case .checking: Text("检查中...")
-        case .installing: Text("安装中...")
+        case .installing:
+            VStack(alignment: .leading, spacing: 4) {
+                if expectedDuration > 0 {
+                    ProgressView(value: installProgress)
+                        .progressViewStyle(.linear)
+                        .tint(.accentColor)
+                } else {
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                        .tint(.accentColor)
+                }
+                Text(progressMessage)
+                    .font(.caption2)
+                    .foregroundColor(item.id == "homebrew" ? .orange : .secondary)
+            }
+            .padding(.top, 2)
         case .installed(let version): Text(version)
         case .missing: Text("未安装")
         case .failed(let msg): Text(msg).lineLimit(2)

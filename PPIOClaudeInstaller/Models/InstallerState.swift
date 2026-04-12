@@ -97,9 +97,7 @@ class InstallerState: ObservableObject {
     @Published var diagnosticStatus: DiagnosticStatus = .idle
 
     func goNext() {
-        var nextRaw = currentStep.rawValue + 1
-        // Skip networkSelection (merged into dependencyCheck)
-        if nextRaw == InstallerStep.networkSelection.rawValue { nextRaw += 1 }
+        let nextRaw = currentStep.rawValue + 1
         if let next = InstallerStep(rawValue: nextRaw) {
             withAnimation(.easeInOut(duration: 0.3)) {
                 currentStep = next
@@ -108,9 +106,7 @@ class InstallerState: ObservableObject {
     }
 
     func goBack() {
-        var prevRaw = currentStep.rawValue - 1
-        // Skip networkSelection (merged into dependencyCheck)
-        if prevRaw == InstallerStep.networkSelection.rawValue { prevRaw -= 1 }
+        let prevRaw = currentStep.rawValue - 1
         if let prev = InstallerStep(rawValue: prevRaw) {
             withAnimation(.easeInOut(duration: 0.3)) {
                 currentStep = prev

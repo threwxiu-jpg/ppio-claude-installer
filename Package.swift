@@ -1,10 +1,10 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
     name: "PPIOClaudeInstaller",
     platforms: [
-        .macOS(.v13)
+        .macOS(.v14)
     ],
     targets: [
         .executableTarget(
@@ -17,7 +17,18 @@ let package = Package(
         .testTarget(
             name: "PPIOClaudeInstallerTests",
             dependencies: ["PPIOClaudeInstaller"],
-            path: "Tests"
+            path: "Tests",
+            swiftSettings: [
+                .unsafeFlags([
+                    "-F", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
+                ])
+            ],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-F", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+                    "-framework", "Testing"
+                ])
+            ]
         )
     ]
 )
