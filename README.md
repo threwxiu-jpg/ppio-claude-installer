@@ -1,13 +1,13 @@
 # PPIO Claude Installer
 
-A cross-platform installer that configures [Claude Code](https://docs.anthropic.com/en/docs/claude-code) to work with the [PPIO API](https://ppio.com), [AI Proxy](https://apiproxy.paigod.work), or any custom API endpoint.
+一键配置 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 使用 [PPIO API](https://ppio.com) 的跨平台安装器，同时支持 AI Proxy 及自定义 API 端点。
 
-**[Download Latest Release](https://github.com/threwxiu-jpg/ppio-claude-installer/releases/latest)**
+## Download
 
-| Platform | Tech Stack | File |
-|----------|-----------|------|
-| macOS | SwiftUI | `PPIOClaudeInstaller.dmg` |
-| Windows | Electron + React | `PP Claude Installer Setup.exe` |
+| Platform | Version | Link |
+|----------|---------|------|
+| macOS (14.0+) | v1.0.1 | [**PPIOClaudeInstaller.dmg**](https://github.com/threwxiu-jpg/ppio-claude-installer/releases/download/v1.0.1/PPIOClaudeInstaller.dmg) |
+| Windows (10+) | v1.0.0 | [**PP.Claude.Installer.Setup.exe**](https://github.com/threwxiu-jpg/ppio-claude-installer/releases/download/v1.0.0/PP.Claude.Installer.Setup.exe) |
 
 ## Features
 
