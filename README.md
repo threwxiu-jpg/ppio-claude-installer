@@ -80,7 +80,7 @@ CLAUDE_CODE_SKIP_AUTH_LOGIN=1
 
 | Platform | Minimum Version |
 |----------|----------------|
-| macOS | 13.0 (Ventura) |
+| macOS | 14.0 (Sonoma) |
 | Windows | 10+ |
 
 ## Build from Source
@@ -137,6 +137,19 @@ win/                           # Windows (Electron + React)
 ├── package.json
 └── electron-builder.yml
 ```
+
+## Changelog
+
+### v1.0.1
+- Fix Homebrew install failure on USTC mirror (`git remote set-head --auto` error)
+- Fix Homebrew detection showing "未安装" after successful USTC mirror install
+- Fix installer step order (network selection was being skipped)
+- Fix Claude CLI detection in post-install diagnostics (GUI app PATH issue)
+- Shrink network selection card UI
+- Add `--with-xcode-clt` flag to `uninstall-for-test.sh`
+
+### v1.0.0
+- Initial release
 
 ## License
 
