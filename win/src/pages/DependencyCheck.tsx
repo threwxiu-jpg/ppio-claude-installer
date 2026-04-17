@@ -118,6 +118,27 @@ export function DependencyCheck() {
     return `${Math.floor(s / 60)}m${s % 60}s`
   }
 
+  function renderErrorText(text: string) {
+    const parts = text.split(/(https?:\/\/[^\s]+)/)
+    return (
+      <>
+        {parts.map((part, i) =>
+          /^https?:\/\//.test(part) ? (
+            <span
+              key={i}
+              onClick={() => window.electronAPI.openExternal(part)}
+              style={{ textDecoration: 'underline', cursor: 'pointer', color: 'rgba(99,102,241,0.9)' }}
+            >
+              {part}
+            </span>
+          ) : (
+            <span key={i}>{part}</span>
+          )
+        )}
+      </>
+    )
+  }
+
   function renderDep(dep: typeof state.dependencies[0], showAction: boolean) {
     return (
       <div key={dep.id}>
@@ -163,7 +184,7 @@ export function DependencyCheck() {
             fontSize: 11, color: 'var(--color-error)', padding: '0 0 8px 24px',
             lineHeight: 1.4,
           }}>
-            {dep.error}
+            {renderErrorText(dep.error)}
           </div>
         )}
       </div>

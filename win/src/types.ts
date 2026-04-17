@@ -36,7 +36,7 @@ export interface PPIOModel {
   displayName: string
 }
 
-export const BUILTIN_MODELS: PPIOModel[] = [
+export const PPIO_MODELS: PPIOModel[] = [
   { id: 'pa/claude-opus-4-6', displayName: 'Claude Opus 4.6' },
   { id: 'pa/claude-sonnet-4-6', displayName: 'Claude Sonnet 4.6' },
   { id: 'pa/gt-4.1', displayName: 'GPT-4.1' },
@@ -46,6 +46,16 @@ export const BUILTIN_MODELS: PPIOModel[] = [
   { id: 'deepseek/deepseek-r1-0528', displayName: 'DeepSeek R1' },
   { id: 'pa/grk-4', displayName: 'Grok 4' },
   { id: 'minimax/minimax-m2.1', displayName: 'MiniMax M2.1' },
+  { id: 'pa/doubao-seed-1.6', displayName: 'Doubao Seed 1.6' },
+]
+
+export const AIPROXY_MODELS: PPIOModel[] = [
+  { id: 'pa/claude-opus-4-6', displayName: 'Claude Opus 4.6' },
+  { id: 'pa/claude-sonnet-4-6', displayName: 'Claude Sonnet 4.6' },
+  { id: 'pa/claude-haiku-4-5-20251001', displayName: 'Claude Haiku 4.5' },
+  { id: 'deepseek/deepseek-v3.2', displayName: 'DeepSeek V3.2' },
+  { id: 'deepseek/deepseek-r1-0528', displayName: 'DeepSeek R1' },
+  { id: 'minimax/minimax-m2.5', displayName: 'MiniMax M2.5' },
   { id: 'pa/doubao-seed-1.6', displayName: 'Doubao Seed 1.6' },
 ]
 
@@ -67,7 +77,7 @@ export type UrlMode = 'ppio' | 'aiproxy' | 'custom'
 
 export const URL_PRESETS: Record<Exclude<UrlMode, 'custom'>, string> = {
   ppio: 'https://api.ppio.com/anthropic',
-  aiproxy: 'https://apiproxy.paigod.work',
+  aiproxy: 'https://apiproxy.paigod.work/v1',
 }
 
 export interface AppState {
@@ -131,6 +141,7 @@ declare global {
       runDiagnostics: (apiKey: string, modelID: string, baseUrl: string) => Promise<DiagnosticResult[]>
       openPowerShell: () => Promise<boolean>
       quitApp: () => Promise<void>
+      openExternal: (url: string) => Promise<void>
       onInstallProgress: (cb: (data: { id: string; line: string }) => void) => () => void
     }
   }

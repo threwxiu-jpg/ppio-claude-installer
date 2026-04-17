@@ -7,7 +7,7 @@
 | Platform | Version | Link |
 |----------|---------|------|
 | macOS (14.0+) | v1.0.1 | [**PPIOClaudeInstaller.dmg**](https://github.com/threwxiu-jpg/ppio-claude-installer/releases/download/v1.0.1/PPIOClaudeInstaller.dmg) |
-| Windows (10+) | v1.0.0 | [**PP.Claude.Installer.Setup.exe**](https://github.com/threwxiu-jpg/ppio-claude-installer/releases/download/v1.0.0/PP.Claude.Installer.Setup.exe) |
+| Windows (10+) | v1.1.0 | [**PP.Claude.Installer.Setup.exe**](https://github.com/threwxiu-jpg/ppio-claude-installer/releases/download/v1.1.0/PP.Claude.Installer.Setup.exe) |
 
 ## Features
 
@@ -17,17 +17,19 @@
 - **API key validation** — verifies connection before writing any config
 - **10+ built-in models** — Claude, GPT, Gemini, DeepSeek, Grok, MiniMax, Doubao + custom model input
 - **Environment diagnostics** — post-install health check with CRITICAL / OPTIONAL severity levels
-- **Mirror acceleration** (macOS) — USTC + npmmirror for users in China
+- **Mirror acceleration** — USTC + npmmirror (macOS); npmmirror CDN for Git installer (Windows, ~19× faster than GitHub direct)
 
 ## Supported API Providers
 
 | Provider | Base URL | Key Format |
 |----------|----------|-----------|
 | PPIO | `https://api.ppio.com/anthropic` | `sk_...` (length >= 20) |
-| AI Proxy | `https://apiproxy.paigod.work` | Any key (length >= 10) |
+| AI Proxy | `https://apiproxy.paigod.work/v1` | Any key (length >= 10) |
 | Custom | User-defined | Any key (length >= 10) |
 
 ## Supported Models
+
+### PPIO
 
 | Model | ID |
 |-------|-----|
@@ -42,7 +44,19 @@
 | MiniMax M2.1 | `minimax/minimax-m2.1` |
 | Doubao Seed 1.6 | `pa/doubao-seed-1.6` |
 
-You can also enter any custom model ID in `vendor/model` format.
+### AI Proxy
+
+| Model | ID |
+|-------|-----|
+| Claude Opus 4.6 | `pa/claude-opus-4-6` |
+| Claude Sonnet 4.6 | `pa/claude-sonnet-4-6` |
+| Claude Haiku 4.5 | `pa/claude-haiku-4-5-20251001` |
+| DeepSeek V3.2 | `deepseek/deepseek-v3.2` |
+| DeepSeek R1 | `deepseek/deepseek-r1-0528` |
+| MiniMax M2.5 | `minimax/minimax-m2.5` |
+| Doubao Seed 1.6 | `pa/doubao-seed-1.6` |
+
+All providers also support entering any custom model ID manually.
 
 ## Configuration Written
 
@@ -139,6 +153,13 @@ win/                           # Windows (Electron + React)
 ```
 
 ## Changelog
+
+### v1.1.0 (Windows)
+- **Git mirror acceleration** — when mirror mode is selected, downloads Git installer from npmmirror CDN instead of winget/GitHub (~19× faster for users in China)
+- **AI Proxy URL updated** to `https://apiproxy.paigod.work/v1`
+- **Separate model lists** for PPIO and AI Proxy; custom URL mode shows a dedicated model ID input
+- **Manual model input** added alongside preset list for PPIO and AI Proxy (type to activate, click preset to clear)
+- **Clickable error links** — URLs in dependency error messages now open in the system browser
 
 ### v1.0.1
 - Fix Homebrew install failure on USTC mirror (`git remote set-head --auto` error)

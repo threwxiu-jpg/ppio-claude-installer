@@ -101,6 +101,21 @@ export async function installDependency(id: string, useMirror: boolean, onProgre
 
   switch (id) {
     case 'git': {
+      if (useMirror) {
+        // Mirror path: download installer directly from npmmirror CDN (~19x faster than GitHub in CN)
+        // Version: v2.53.0.windows.3 — update here when a new stable release is available
+        const mirrorUrl = 'https://cdn.npmmirror.com/binaries/git-for-windows/v2.53.0.windows.3/Git-2.53.0.3-64-bit.exe'
+        const dlCmd = `$ProgressPreference='SilentlyContinue'; Write-Host '正在从镜像下载 Git (62MB)...'; Invoke-WebRequest -Uri '${mirrorUrl}' -OutFile "$env:TEMP\\git-installer.exe" -UseBasicParsing; Write-Host '下载完成'`
+        const dlResult = await run(dlCmd, 300000)
+        if (dlResult.exitCode !== 0) {
+          return { success: false, error: '镜像下载失败，请手动从 https://git-scm.com/downloads/win 下载安装' }
+        }
+        const installCmd = `Write-Host '正在安装 Git...'; Start-Process -FilePath "$env:TEMP\\git-installer.exe" -ArgumentList '/VERYSILENT /NORESTART' -Wait; Write-Host '安装完成'`
+        const installResult = await run(installCmd, 300000)
+        if (installResult.exitCode === 0) return { success: true }
+        return { success: false, error: 'Git 安装失败，请手动从 https://git-scm.com/downloads/win 下载安装' }
+      }
+      // Direct path: use winget
       const result = await run('winget install Git.Git --accept-source-agreements --accept-package-agreements', 600000)
       if (result.exitCode === 0) return { success: true }
       return { success: false, error: result.error || 'Git 安装失败。请手动从 https://git-scm.com/downloads/win 下载安装' }

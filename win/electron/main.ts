@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import path from 'node:path'
 import { runCommand } from './services/shell'
 import { checkDependency, installDependency, checkNetworkSpeed } from './services/dependency'
@@ -87,6 +87,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('quit-app', () => {
     app.quit()
+  })
+
+  ipcMain.handle('open-external', (_e, url: string) => {
+    shell.openExternal(url)
   })
 })
 

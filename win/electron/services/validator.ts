@@ -11,7 +11,9 @@ export async function validateAPI(apiKey: string, modelID: string, baseUrl: stri
 
     let parsed: URL
     try {
-      parsed = new URL(baseUrl + '/v1/messages')
+      // Strip trailing /v1 so we don't produce double /v1/v1/messages
+      const normalizedBase = baseUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '')
+      parsed = new URL(normalizedBase + '/v1/messages')
     } catch {
       return resolve({ success: false, error: 'Base URL 格式无效' })
     }
