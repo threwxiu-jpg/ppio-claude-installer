@@ -18,7 +18,7 @@ export function Welcome() {
         <div>
           <div style={{ fontSize: 22, fontWeight: 600 }}>PP Claude Installer</div>
           <div style={{ fontSize: 13, color: 'var(--color-secondary)', marginTop: 4 }}>
-            安装助手 · v1.0.0
+            安装助手 · v1.1.0
           </div>
         </div>
       }
